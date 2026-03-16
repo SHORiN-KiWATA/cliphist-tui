@@ -8,23 +8,17 @@ Use `chafa` for image preview, `kitty icat` for gif preview when using native ki
 
 ## Showcase
 
-- kitty
+- Ctrl+X delete selection
 
-![](pictures/kitty2.png)
+![](pictures/delete-selection.gif)
 
-- useful features
+- Auto refresh when clipboard changed and Alt+X delete all
 
-  - Ctrl+X delete selection
+![](pictures/delete-all-and-instance-refresh.gif)
 
-    ![](pictures/delete-selection.gif)
+- Ctrl+E/O open videos or pictures from clipboad manager
 
-  - Auto refresh when clipboard changed and Alt+X delete all
-
-    ![](pictures/delete-all-and-instance-refresh.gif)
-
-  - Ctrl+E/O open videos or pictures from clipboad manager
-
-    ![](pictures/open-from-clipboard.gif)
+![](pictures/open-from-clipboard.gif)
 
 ## Installation
 
