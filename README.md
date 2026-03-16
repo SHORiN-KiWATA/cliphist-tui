@@ -2,56 +2,70 @@
 
 My first bash script.
 
-A wayland clipboard TUI based on `fzf` `wl-clipboard` `cliphist`. 
+A wayland clipboard TUI based on `fzf` `wl-clipboard` `cliphist`.
 
 Use `chafa` for image preview, `kitty icat` for gif preview when using native kitty, `ffmpegthumbnailer` for video thumb generation.
 
-- some images
+## Showcase
 
-    - kitty 
+- kitty
 
-    ![](pictures/kitty2.png)
+![](pictures/kitty2.png)
 
-- installation
+- useful features
 
-    ```
-    yay -S shorinclip
-    ```
-    For best image preview, a terminal which supports kitty image protocol is needed, such as `kitty` or `ghostty`, or you can let chafa handle image preview (maybe low quality).
-    
-    For example :
+  - Ctrl+X delete selection
 
-    - foot
- 
+    ![](pictures/delete-selection.gif)
+
+  - Auto refresh when clipboard changed and Alt+X delete all
+
+    ![](pictures/delete-all-and-instance-refresh.gif)
+
+  - Ctrl+E/O open videos or pictures from clipboad manager
+
+    ![](pictures/open-from-clipboard.gif)
+
+## Installation
+
+```
+yay -S shorinclip-git
+```
+
+For best image preview, a terminal which supports kitty image protocol is needed, such as `kitty` or `ghostty`, or you can let chafa handle image preview (maybe low quality).
+
+For example :
+
+- foot
+
     ![](pictures/foot.png)
 
-    - alacritty
+- alacritty
 
     ![](pictures/alacritty.png)
 
+## Usage
 
-- usage
+Open cliphist daemon with this command:
 
-    Open cliphist daemon with this command:
-  
+```
+wl-paste --watch cliphist store
+```
+
+Open tui with this command: `shorinclip`
+
+Then it just works.
+
+Don't forget to setup autostart in your wayland compositor's config file.
+
+- Niri
+
     ```
-    wl-paste --watch cliphist store
+    spawn-at-startup "wl-paste" "--watch" "cliphist" "store"
     ```
-    
-    Open tui with this command: `shorinclip` 
 
-    Then it just works. 
-    
-    Don't forget to setup autostart in your wayland compositor's config file.
+- Hyprland
 
-    - Niri
-
-        ```
-        spawn-at-startup "wl-paste" "--watch" "cliphist" "store"
-        ```
-
-    - Hyprland
-
-        ```
-        exec-once = wl-paste --watch cliphist store
-        ```
+    ```
+    exec-once = wl-paste --watch cliphist store
+    ```
