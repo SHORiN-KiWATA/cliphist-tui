@@ -166,6 +166,19 @@ open_selection() {
     python -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.argv[1]))" "$1"
   }
 
+  # 检测文件是否为视频，如果有mpv则带有app-id打开，否则回退到xdg-open
+  smart_open() {
+    local file_path="$1"
+    local file_mime=$(file -b --mime-type "$file_path")
+    
+    # 如果是视频并且安装了mpv
+    if [[ "$file_mime" =~ video ]] && command -v mpv >/dev/null 2>&1; then
+      mpv --wayland-app-id="floating-mpv" "$file_path" >/dev/null 2>&1 & disown
+    else
+      xdg-open "$file_path" >/dev/null 2>&1 & disown
+    fi
+  }
+
   # 1. 二进制图片 -> 写入缓存再打开
   if [[ "$mime" =~ image ]]; then
     local img_hash=$(echo "$input" | cliphist decode | hash_calc)
@@ -184,21 +197,21 @@ open_selection() {
   # QQ 视频富文本 -> 提取路径打开 
   elif echo "$decoded" | grep -a -q "QQRich[E]ditFormat" && echo "$decoded" | grep -a -q 'EditElement type="[7]"' && [ -f "$(echo "$decoded" | grep -a -oP 'filepat[h]="\K[^"]+' | head -n 1)" ]; then
     local qq_vid_src=$(echo "$decoded" | grep -a -oP 'filepat[h]="\K[^"]+' | head -n 1)
-    xdg-open "$qq_vid_src" >/dev/null 2>&1 & disown
+    smart_open "$qq_vid_src"
 
   # 3. file:// 协议路径 -> 解码后打开
   elif [[ "$decoded" == file://* ]]; then
     local raw_path="${decoded#file://}"
     raw_path=$(url_decode "$raw_path")
     if [ -e "$raw_path" ]; then
-      xdg-open "$raw_path" >/dev/null 2>&1 & disown
+      smart_open "$raw_path"
     else
       notify-send "Open Error" "File does not exist: $raw_path"
     fi
 
   # 4. 绝对路径 -> 直接打开
   elif [[ "$decoded" == /* ]] && [ -e "$decoded" ]; then
-    xdg-open "$decoded" >/dev/null 2>&1 & disown
+    smart_open "$decoded"
 
   else
     return 0
