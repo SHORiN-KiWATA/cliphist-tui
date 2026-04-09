@@ -316,9 +316,18 @@ export -f copy_selection
 # 自动刷新机制
 FZF_PORT=$(shuf -i 10000-60000 -n 1)
 RELOAD_CMD="cliphist list | filter_clip_list | format_clip_list | add_num"
-wl-paste --watch bash -c "kill -9 \$(cat \"/dev/shm/shorinclip_reload_${FZF_PORT}.pid\" 2>/dev/null) 2>/dev/null; (sleep 0.15; curl -s -X POST -d 'reload($RELOAD_CMD)' http://localhost:$FZF_PORT) & echo \$! > \"/dev/shm/shorinclip_reload_${FZF_PORT}.pid\"" >/dev/null 2>&1 &
+cliphist list | head -n 1 | cut -f1 > "/dev/shm/shorinclip_last_id_${FZF_PORT}"
+wl-paste --watch bash -c "
+  CURRENT_ID=\$(cliphist list | head -n 1 | cut -f1)
+  LAST_ID=\$(cat \"/dev/shm/shorinclip_last_id_${FZF_PORT}\" 2>/dev/null)
+  if [ \"\$CURRENT_ID\" != \"\$LAST_ID\" ]; then
+    echo \"\$CURRENT_ID\" > \"/dev/shm/shorinclip_last_id_${FZF_PORT}\"
+    kill -9 \$(cat \"/dev/shm/shorinclip_reload_${FZF_PORT}.pid\" 2>/dev/null) 2>/dev/null
+    (sleep 0.15; curl -s -X POST -d 'reload($RELOAD_CMD)' http://localhost:$FZF_PORT) & echo \$! > \"/dev/shm/shorinclip_reload_${FZF_PORT}.pid\"
+  fi
+" >/dev/null 2>&1 &
 WATCH_PID=$!
-trap "kill $WATCH_PID 2>/dev/null" EXIT
+trap "kill $WATCH_PID 2>/dev/null; rm -f \"/dev/shm/shorinclip_last_id_${FZF_PORT}\" \"/dev/shm/shorinclip_reload_${FZF_PORT}.pid\"" EXIT
 
 # 读取窗口大小，避免窗口过小的时候就打开fzf导致菜单错位
 # 50次循环超时
@@ -362,81 +371,77 @@ cliphist list | filter_clip_list | format_clip_list | add_num | fzf \
   # 获取文件后缀名
   ext="${mimeType#*/}"
 
-  PREVIEW_OUT=$(
-    # 通过mimetype判断数据/类型
-    # 如果是二进制图片
-    if [[ $mimeType =~ image ]]; then
-          # 生成缓存文件
-          img_hash=$(hash_calc < "$tmp_preview")
-          cache_file="$CACHE_DIR/$img_hash.$ext" 
-          if [ ! -f "$cache_file" ]; then
-              cp "$tmp_preview" "$cache_file"
-          fi
-          _preview "$cache_file"
-     
-    # 如果是qq复制出来的html链接
-    elif [ "$mimeType" = "text/html" ] && grep -a -q "QQ" "$tmp_preview"; then
-          # 获取html数据中的图片路径，加入容错
-          qq_img_file=$(grep -a -oP "^<img sr[c]=\"file://\K[^\"]+" "$tmp_preview" | head -n 1)
-          if [ -n "$qq_img_file" ] && [ -f "$qq_img_file" ]; then
-              _preview "$qq_img_file"
-          else
-              cat "$tmp_preview"
-          fi
-
-    # 如果是QQ复制出来的富文本视频 (规避自匹配 bug)
-    elif grep -a -q "QQRich[E]ditFormat" "$tmp_preview" && grep -a -q "EditElement type=\"[7]\"" "$tmp_preview"; then
-          qq_vid_file=$(grep -a -oP "filepat[h]=\"\K[^\"]+" "$tmp_preview" | head -n 1)
-          # 如果确实提取到了真实文件才进行处理，否则当成纯文本输出
-          if [ -n "$qq_vid_file" ] && [ -f "$qq_vid_file" ]; then
-                _preview_video "$qq_vid_file"
-          else
-                # 匹配错误或文件不存在，退回纯文本预览
-                cat "$tmp_preview"
-          fi
-
-    # 如果是复制文件获取的绝对路径
-    elif path=$(cat "$tmp_preview") && [[ "$path" == /* ]]; then
-          # 获取路径代表的文件的mimetype
-          path_mime=$(file -b --mime-type "$path")
-          # 如果是图片的话 
-          if [[ $path_mime =~ image ]]; then
-                _preview "$path"
-          # 如果是视频的话 
-          elif [[ "$path_mime" =~ video ]]; then
-                _preview_video "$path"
-          else
-                echo "$path"
-          fi
-    # 如果是file:///开头的协议路径
-    elif decoded=$(cat "$tmp_preview") && [[ "$decoded" == file://* ]]; then
-          # 获取文件路径
-          raw_path="${decoded#file://}"
-          raw_path=$(printf "%b" "${raw_path//%/\\x}")
-          mime_raw_path=$(file -b --mime-type "$raw_path")
-
-          # 如果是图片的话
-          if [[ $mime_raw_path =~ image ]]; then
-              _preview "$raw_path" 
-          # 如果是视频的话
-          elif [[ $mime_raw_path =~ video  ]]; then
-              _preview_video "$raw_path"
-          fi
-
-    # 其他数据
-    else
-          # 直接预览 (移除了旧版此处无用的清理代码，因为已在顶部统一清理)
-          cat "$tmp_preview"
-    fi
-  ) 2>/dev/null
-
   # 【修复 Bug 3】：全局强制清空残留的Kitty图片！
   # 必须定向到 > /dev/tty，否则 fzf 会把图形转义符吞掉，导致图片无法被消除，出现文字和图片重叠！
   if [ "$ENABLE_ICAT" = "1" ]; then
       printf "\033_Ga=d,d=A\033\\" > /dev/tty
   fi
 
-  printf "%s\n" "$PREVIEW_OUT"
+  # 通过mimetype判断数据/类型
+  # 如果是二进制图片
+  if [[ $mimeType =~ image ]]; then
+        # 生成缓存文件
+        img_hash=$(hash_calc < "$tmp_preview")
+        cache_file="$CACHE_DIR/$img_hash.$ext" 
+        if [ ! -f "$cache_file" ]; then
+            cp "$tmp_preview" "$cache_file"
+        fi
+        _preview "$cache_file"
+   
+  # 如果是qq复制出来的html链接
+  elif [ "$mimeType" = "text/html" ] && grep -a -q "QQ" "$tmp_preview"; then
+        # 获取html数据中的图片路径，加入容错
+        qq_img_file=$(grep -a -oP "^<img sr[c]=\"file://\K[^\"]+" "$tmp_preview" | head -n 1)
+        if [ -n "$qq_img_file" ] && [ -f "$qq_img_file" ]; then
+            _preview "$qq_img_file"
+        else
+            cat "$tmp_preview"
+        fi
+
+  # 如果是QQ复制出来的富文本视频 (规避自匹配 bug)
+  elif grep -a -q "QQRich[E]ditFormat" "$tmp_preview" && grep -a -q "EditElement type=\"[7]\"" "$tmp_preview"; then
+        qq_vid_file=$(grep -a -oP "filepat[h]=\"\K[^\"]+" "$tmp_preview" | head -n 1)
+        # 如果确实提取到了真实文件才进行处理，否则当成纯文本输出
+        if [ -n "$qq_vid_file" ] && [ -f "$qq_vid_file" ]; then
+              _preview_video "$qq_vid_file"
+        else
+              # 匹配错误或文件不存在，退回纯文本预览
+              cat "$tmp_preview"
+        fi
+
+  # 如果是复制文件获取的绝对路径
+  elif path=$(cat "$tmp_preview") && [[ "$path" == /* ]]; then
+        # 获取路径代表的文件的mimetype
+        path_mime=$(file -b --mime-type "$path")
+        # 如果是图片的话 
+        if [[ $path_mime =~ image ]]; then
+              _preview "$path"
+        # 如果是视频的话 
+        elif [[ "$path_mime" =~ video ]]; then
+              _preview_video "$path"
+        else
+              echo "$path"
+        fi
+  # 如果是file:///开头的协议路径
+  elif decoded=$(cat "$tmp_preview") && [[ "$decoded" == file://* ]]; then
+        # 获取文件路径
+        raw_path="${decoded#file://}"
+        raw_path=$(printf "%b" "${raw_path//%/\\x}")
+        mime_raw_path=$(file -b --mime-type "$raw_path")
+
+        # 如果是图片的话
+        if [[ $mime_raw_path =~ image ]]; then
+            _preview "$raw_path" 
+        # 如果是视频的话
+        elif [[ $mime_raw_path =~ video  ]]; then
+            _preview_video "$raw_path"
+        fi
+
+  # 其他数据
+  else
+        # 直接预览 (移除了旧版此处无用的清理代码，因为已在顶部统一清理)
+        cat "$tmp_preview"
+  fi
   ' \
   --bind "enter:execute-silent(bash -c 'copy_selection \"\$1\"' -- {})+accept"\
   --bind "ctrl-f:execute-silent(bash -c 'copy_selection \"\$1\"' -- {})+accept"\
