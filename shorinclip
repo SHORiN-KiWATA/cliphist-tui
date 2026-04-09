@@ -99,8 +99,6 @@ _preview() {
   local mime=$(file -b --mime-type "$file")
   # 如果支持kitty协议的话
   if [ "$ENABLE_ICAT" = "1" ]; then
-    # 清除图片
-    printf "\x1b_Ga=d\x1b\\"
     # 如果是gif并且是原生kitty终端的话用kitty icat显示gif图片（不过窗口过小的时候貌似无法完整显示）
     if [ "$IS_NATIVE_KITTY" = "1" ] && [[ "$mime" =~ "gif" ]]; then
       kitty icat --transfer-mode=file --image-id=10 \
@@ -120,7 +118,7 @@ export -f _preview
 
 # 过滤无法复制粘贴的信息
 filter_clip_list() {
-    grep -a -viE "\t.*<html.*\[表情\]"
+    grep -a -viE "[[:space:]].*<html.*\[表情\]"
 }
 export -f filter_clip_list
 
@@ -298,7 +296,7 @@ cliphist list | filter_clip_list | format_clip_list | add_num | fzf \
   --listen "$FZF_PORT" \
   --bind "ctrl-r:reload($RELOAD_CMD)" \
   --bind "ctrl-x:execute-silent(bash -c 'cliphist delete <<< \"\$1\"' -- {})+reload($RELOAD_CMD)" \
-  --bind "alt-x:execute-silent(gio trash \"$HOME/.cache/cliphist/db\" 2>/dev/null || rm \"$HOME/.cache/cliphist/db\")+reload($RELOAD_CMD)" \
+  --bind "alt-x:execute-silent(bash -c 'gio trash \"$HOME/.cache/cliphist/db\" 2>/dev/null || rm -f \"$HOME/.cache/cliphist/db\"; [ \"\$ENABLE_ICAT\" = \"1\" ] && printf \"\033_Ga=d\033\\\\\\\\\" > /dev/tty')+reload($RELOAD_CMD)" \
   --bind "ctrl-o:execute-silent(bash -c 'open_selection \"\$1\"' -- {})" \
   --bind "ctrl-e:execute-silent(bash -c 'open_selection \"\$1\"' -- {})" \
   --prompt="󰅍 > " \
@@ -311,6 +309,12 @@ cliphist list | filter_clip_list | format_clip_list | add_num | fzf \
   --delimiter '\t' \
   --preview-window=down:60%,wrap \
   --preview '
+  # 【修复 Bug 3】：全局强制清空残留的Kitty图片！
+  # 必须定向到 > /dev/tty，否则 fzf 会把图形转义符吞掉，导致图片无法被消除，出现文字和图片重叠！
+  if [ "$ENABLE_ICAT" = "1" ]; then
+      printf "\033_Ga=d\033\\" > /dev/tty
+  fi
+
   # 获取当期剪贴版项目的id 
   id=$(echo {} | cut -f1)
   content=$(echo {} | cut -f2-)
@@ -430,10 +434,7 @@ cliphist list | filter_clip_list | format_clip_list | add_num | fzf \
 
   # 其他数据
   else
-        if [ $ENABLE_ICAT = 1 ]; then
-          printf "\x1b_Ga=d\x1b\\"
-        fi
-        # 直接预览
+        # 直接预览 (移除了旧版此处无用的清理代码，因为已在顶部统一清理)
         echo {} | cliphist decode 
   fi
   ' \
