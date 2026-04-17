@@ -242,13 +242,18 @@ fn run_tui() {
     }
 
     let watcher_script = format!(
-        "CURRENT_ID=$(cliphist list | head -n 1 | cut -f1); \
-        LAST_ID=$(cat /dev/shm/shorinclip_last_id_{port} 2>/dev/null); \
-        if [ \"$CURRENT_ID\" != \"$LAST_ID\" ]; then \
-            echo \"$CURRENT_ID\" > /dev/shm/shorinclip_last_id_{port}; \
-            (sleep 0.15; curl -s -X POST -d 'reload({exe} list)' http://localhost:{port}) & \
-        fi"
+        "for i in {{1..10}}; do \
+            CURRENT_ID=$(cliphist list | head -n 1 | cut -f1); \
+            LAST_ID=$(cat /dev/shm/shorinclip_last_id_{port} 2>/dev/null); \
+            if [ -n \"$CURRENT_ID\" ] && [ \"$CURRENT_ID\" != \"$LAST_ID\" ]; then \
+                echo \"$CURRENT_ID\" > /dev/shm/shorinclip_last_id_{port}; \
+                curl -s -X POST -d 'reload({exe} list)' http://localhost:{port} & \
+                break; \
+            fi; \
+            sleep 0.2; \
+        done"
     );
+
     let mut watcher = Command::new("wl-paste").arg("--watch").arg("bash").arg("-c").arg(&watcher_script).spawn().unwrap();
 
     let mut fzf = Command::new("fzf")
