@@ -87,7 +87,11 @@ fn get_mime_from_path(p: &Path) -> String {
 
 // 完美删除逻辑：通过 ID 获取完整内容行后再删除
 fn delete_clip_by_id(id: &str) {
-    if let Ok(list) = Command::new("cliphist").arg("list").output() {
+    if let Ok(list) = Command::new("cliphist")
+        .arg("list")
+        .stderr(Stdio::null())
+        .output()
+    {
         let list_str = String::from_utf8_lossy(&list.stdout);
         let prefix = format!("{}\t", id.trim());
         if let Some(line) = list_str.lines().find(|l| l.starts_with(&prefix)) {
@@ -97,6 +101,27 @@ fn delete_clip_by_id(id: &str) {
             }
         }
     }
+}
+
+fn first_clip_id() -> String {
+    let Ok(output) = Command::new("cliphist")
+        .arg("list")
+        .stderr(Stdio::null())
+        .output()
+    else {
+        return String::new();
+    };
+
+    let output = String::from_utf8_lossy(&output.stdout);
+    let Some(line) = output.lines().next() else {
+        return String::new();
+    };
+
+    line.split_once('\t')
+        .map(|(id, _)| id)
+        .unwrap_or(line)
+        .trim()
+        .to_string()
 }
 
 fn main() {
@@ -175,7 +200,12 @@ fn get_decode(id: &str) -> Vec<u8> {
 
 // 彻底改为管道流式处理，零等待直接投递，将最大内存消耗平摊掉
 fn stream_formatted_list<W: Write>(mut writer: W) {
-    if let Ok(mut child) = Command::new("cliphist").arg("list").stdout(Stdio::piped()).spawn() {
+    if let Ok(mut child) = Command::new("cliphist")
+        .arg("list")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
         if let Some(stdout) = child.stdout.take() {
             let reader = BufReader::new(stdout);
             let mut num = 1;
@@ -236,14 +266,11 @@ fn run_tui() {
     // 【解决闪烁的终极修复】：在启动 watcher 之前，初始化 LAST_ID 文件
     // 否则 FZF 刚启动渲染完第一项，watcher 就会由于文件不存在立即触发一次 Reload，导致图片刚绘制就立刻被清除重绘。
     let last_id_path = format!("/dev/shm/shorinclip_last_id_{}", port);
-    if let Ok(output) = Command::new("sh").arg("-c").arg("cliphist list | head -n 1 | cut -f1").output() {
-        let initial_id = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let _ = fs::write(&last_id_path, &initial_id);
-    }
+    let _ = fs::write(&last_id_path, first_clip_id());
 
     let watcher_script = format!(
         "for i in {{1..10}}; do \
-            CURRENT_ID=$(cliphist list | head -n 1 | cut -f1); \
+            CURRENT_ID=$(cliphist list 2>/dev/null | head -n 1 | cut -f1); \
             LAST_ID=$(cat /dev/shm/shorinclip_last_id_{port} 2>/dev/null); \
             if [ -n \"$CURRENT_ID\" ] && [ \"$CURRENT_ID\" != \"$LAST_ID\" ]; then \
                 echo \"$CURRENT_ID\" > /dev/shm/shorinclip_last_id_{port}; \
