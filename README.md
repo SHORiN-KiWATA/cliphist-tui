@@ -1,10 +1,10 @@
-# Cliphist-tui
+# cliphist-tui
 
 Old name: shorinclip
 
-A wayland clipboard TUI with rich media(IMG/GIF/Video etc.) preview based on `fzf` `wl-clipboard` `cliphist`.
+A Wayland clipboard TUI with rich media (images/GIFs/videos, etc.) preview based on `fzf` `wl-clipboard` `cliphist`.
 
-Use `chafa` for image preview, `kitty icat` for gif preview when using native kitty, `ffmpegthumbnailer` for video thumb generation.
+Use `chafa` for image preview, `kitty icat` for GIF preview when using native kitty, `ffmpegthumbnailer` for video thumbnail generation.
 
 ## Showcase
 
@@ -16,7 +16,7 @@ Use `chafa` for image preview, `kitty icat` for gif preview when using native ki
 
 ![](pictures/delete-all-and-instance-refresh.gif)
 
-- Ctrl+E/O open videos or pictures from clipboad manager
+- Ctrl+E/O open videos or pictures from clipboard manager
 
 ![](pictures/open-from-clipboard.gif)
 
@@ -28,7 +28,7 @@ yay -S cliphist-tui-git
 
 For best image preview, a terminal which supports kitty image protocol is needed, such as `kitty` or `ghostty`, or you can let chafa handle image preview (maybe low quality).
 
-For example :
+For example:
 
 - foot
 
@@ -46,11 +46,11 @@ Open cliphist daemon with this command:
 wl-paste --watch cliphist store
 ```
 
-Open tui with this command: `cliphist-tui` or `shorinclip`.
+Open the TUI with this command: `cliphist-tui` or `shorinclip`.
 
 Then it just works.
 
-Don't forget to setup autostart in your wayland compositor's config file.
+Don't forget to set up autostart in your Wayland compositor's config file.
 
 - Niri
 
