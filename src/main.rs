@@ -365,7 +365,13 @@ fn stream_formatted_list<W: Write>(mut writer: W) {
                 if num == 64 { let _ = writer.flush(); }
             };
 
-            for line in reader.lines().map_while(Result::ok) {
+            // 记录不一定是 UTF-8（X11 程序复制图片时，cliphist 可能存下 4 字节的 TIMESTAMP）：
+            // 按字节读行再宽松解码。用 lines() 的话，读到一条这样的记录就停，整个列表都是空的
+            let lines = reader.split(b'\n').map_while(Result::ok).map(|mut b| {
+                if b.last() == Some(&b'\r') { b.pop(); }
+                String::from_utf8_lossy(&b).into_owned()
+            });
+            for line in lines {
                 if line.contains("<html") && line.contains("[表情]") { continue; }
                 let Some((id, content)) = line.split_once('\t') else { continue };
                 let row = Row { id: id.to_string(), num_id: id.trim().parse().unwrap_or(0), content: content.to_string(), kind: row_kind(content) };
